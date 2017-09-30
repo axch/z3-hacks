@@ -1,6 +1,29 @@
+'''Nonograms solver.
+
+Nonograms is a perfect-information logic puzzle with simple rules.
+There is a free online implementation at, for instance,
+https://www.puzzle-nonograms.com/.
+
+The rules are as follows: You have a grid of squares, which must be
+either filled in black or left white. Beside each row of the grid are
+listed the lengths of the runs of black squares on that row. Above
+each column are listed the lengths of the runs of black squares in
+that column.  The aim is to find all black squares.
+
+This module encodes that puzzle definition as a finite-domain
+constraint satisfaction problem and solves it with Z3
+(https://github.com/Z3Prover/z3).  In my limited testing, Z3 finds
+solutions to puzzles up to 25x25 in a matter of seconds.
+
+For this to work, run it in a virtualenv that has the Z3 python
+bindings installed.
+
+'''
 import sys
 
 import z3
+
+# Several example puzzles below.
 
 # The rows are encoded from the top down, with each row's entries from
 # left to right.
@@ -201,6 +224,16 @@ columns_25 = [
   [3, 4, 4]]
 
 def nonograms(rows, columns):
+  '''Encode the given Nonograms puzzle as a collection of Z3 constraints.
+
+  Return a 2-tuple of the Z3 Solver object representing the puzzle,
+  and the Z3 Bool objects representing whether each square in the grid
+  is black.  The squares are indexed row-major.
+
+  This function just encodes the problem; to solve it, invoke
+  `.check()` on the returned Solver.
+
+  '''
   width = len(columns)
   height = len(rows)
   s = z3.Solver()
@@ -267,6 +300,7 @@ def nonograms(rows, columns):
   return s, squares
 
 def visualize(model, squares, rows, columns):
+  '''Print ASCII art describing the solution found in the given model.'''
   for j in range(len(rows)):
     for i in range(len(columns)):
       char = 'X' if model[squares[j][i]] else '.'
@@ -274,6 +308,8 @@ def visualize(model, squares, rows, columns):
     print ''
 
 def solve(rows, columns):
+  '''Fully solve the given Nonograms puzzle, and print the solution as
+  ASCII art if it exists.'''
   (s, squares) = nonograms(rows, columns)
   res = s.check()
   if res == z3.sat:
