@@ -1,17 +1,39 @@
-# LightUp solver in Z3.  https://www.puzzle-light-up.com/
+'''Light Up solver in Z3.
+
+Light Up is a perfect-information logic puzzle with simple rules.
+There is a free online implementation at, for instance,
+https://www.puzzle-light-up.com/.
+
+The rules are as follows: Light Up is played on a rectangular
+grid. The grid has both black cells and white cells in it. The
+objective is to place light bulbs on the grid so that every white
+square is lit. A cell is illuminated by a light bulb if they're in the
+same row or column, and if there are no black cells between
+them. Also, no light bulb may illuminate another light bulb.  Some of
+the black cells have numbers in them. A number in a black cell
+indicates how many light bulbs share an edge with that cell.
+
+This module encodes that puzzle definition as a finite-domain
+constraint satisfaction problem and solves it with Z3
+(https://github.com/Z3Prover/z3).  In my limited testing, Z3 finds
+solutions to puzzles up to 40x30 in a matter of seconds.
+
+For this to work, run it in a virtualenv that has the Z3 python
+bindings installed.
+'''
+
+import sys
+
+import z3
 
 # A puzzle definition is row-major top-down list of lists entries.
 # An entry gives the state of a cell: clear, blocked, or number, where
-# the number give the number of lights next to that cell.
+# the number gives the number of bulbs next to that cell.
 
 # The readable representation of the puzzle is a list of rows, where
 # each row is a string.  The row has exactly one character per cell:
 # '.' for blank, 'X' for blocked, and a digit for that many bulbs
 # being there.
-
-import sys
-
-import z3
 
 puzzle_5 = [
   "....0..",
@@ -98,22 +120,41 @@ def parse(puzzle):
   return [[parse_char(c) for c in row] for row in puzzle]
 
 def lightup(puzzle):
+  '''Encode a parsed puzzle definition as a collection of Z3 constraints.
+
+  Choice of encoding: For every blank cell, I define an integer that
+  is 1 if the cell contains a blub and 0 if not.  (Not a boolean,
+  because I wasn't sure that Z3 would pun booleans to Bernoulli
+  variables when I wanted to sum them.)
+
+  Return a 2-tuple of the Z3 solver object representing the puzzle,
+  and the row-major list of lists of those integers (or 0 for black
+  cells).
+  '''
+
   # Convention: i indexes rows, j indexes columns
   s = z3.Solver()
   def has_light(i, j, obstacle):
+    '''The variable for whether a given position has a light, depending on
+what obstacle puzzle definition has there.'''
     if obstacle == None:
       light = z3.Int('light %d %d' % (i, j))
       s.add(light >= 0)
       s.add(light <= 1)
       return light
     return 0
+  # The light variables
   lights = [[has_light(i, j, item) for (j, item) in enumerate(row)]
             for (i, row) in enumerate(puzzle)]
+  # Querying for a bulb, possibly outside the grid (which does not
+  # have bulbs).
   def get_light(i, j):
     if 0 <= i and i < len(lights) and 0 <= j and j < len(lights[0]):
       return lights[i][j]
     return 0
 
+  # Yield all the cells that can be seen from the given coordinates
+  # (as a function of what obstacles are where).
   def walk_visible_spaces(i0, j0):
     if lights[i0][j0] is 0:
       return
@@ -173,6 +214,7 @@ def lightup(puzzle):
   return (s, lights)
 
 def render(model, puzzle, lights):
+  '''Render the given solution in ASCII art.  Show an 'o' for every light bulb.'''
   def render_one(i, j):
     if puzzle[i][j] is None:
       # Blank cell
@@ -190,7 +232,7 @@ def render(model, puzzle, lights):
     print ""
 
 def solve(puzzle):
-  '''Fully solve the given LightUp puzzle, and print the solution as
+  '''Fully solve the given Light Up puzzle, and print the solution as
   ASCII art if it exists.'''
   puzzle = parse(puzzle)
   (s, lights) = lightup(puzzle)
